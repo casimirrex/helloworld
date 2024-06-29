@@ -3,45 +3,64 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = 'casimirrex/helloworld'
-        DOCKER_TAG = 'latest'
+        BACKEND_PORT = '9091'
     }
 
     stages {
-        stage('Checkout') {
+        stage('Clone Backend Repository') {
             steps {
-                // Checkout the code from the repository
-                checkout scm
+                git branch: 'main', url: 'https://github.com/casimirrex/helloworld.git', credentialsId: 'docker-credentials'
             }
         }
-        
-        stage('Build') {
+
+        stage('Build with Maven') {
             steps {
                 script {
-                    // Build the Docker image
-                    sh 'docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .'
+                    sh 'mvn clean package'
                 }
             }
         }
-        
-        stage('Test') {
+
+        stage('Docker Login') {
             steps {
-                script {
-                    // Run the Docker container and test the application
-                    sh 'docker run --rm -d -p 9091:9090 --name helloworld ${DOCKER_IMAGE}:${DOCKER_TAG}'
-                    // Add your test commands here
-                    sh 'docker stop helloworld'
+                withCredentials([usernamePassword(credentialsId: 'docker-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                    sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin'
                 }
             }
         }
-        
-        stage('Push') {
+
+        stage('Build Backend Docker Image') {
             steps {
                 script {
-                    // Login to DockerHub and push the Docker image
-                    withCredentials([usernamePassword(credentialsId: 'docker-credentials', passwordVariable: 'DOCKERHUB_PASSWORD', usernameVariable: 'DOCKERHUB_USERNAME')]) {
-                        sh 'echo $DOCKERHUB_PASSWORD | docker login -u $DOCKERHUB_USERNAME --password-stdin'
-                        sh 'echo "Pushing to DockerHub as $DOCKERHUB_USERNAME"'
-                        sh 'docker push ${DOCKER_IMAGE}:${DOCKER_TAG}'
+                    retry(3) {
+                        backendDockerImage = docker.build("${DOCKER_IMAGE}")
+                    }
+                }
+            }
+        }
+
+        stage('Run Backend Docker Container') {
+            steps {
+                script {
+                    backendDockerImage.run("-d -p ${BACKEND_PORT}:9090") // Assuming your backend service runs on port 9090 inside the container
+                }
+            }
+        }
+
+        stage('Wait for Backend Container') {
+            steps {
+                script {
+                    sleep 120 // Wait for 2 minutes
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'docker-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                        sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin'
+                        sh 'docker push ${DOCKER_IMAGE}:latest'
                     }
                 }
             }
