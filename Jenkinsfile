@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = 'casimirrex/helloworld' // Replace with your DockerHub username and repository name
+        DOCKER_IMAGE = 'casimirrex/helloworld'
         DOCKER_TAG = 'latest'
     }
 
@@ -27,10 +27,8 @@ pipeline {
             steps {
                 script {
                     // Run the Docker container and test the application
-                    sh 'docker run --rm -d -p 9090:9090 --name helloworld ${DOCKER_IMAGE}:${DOCKER_TAG}'
-                    // Add your test commands here, for example:
-                    // sh 'curl -f http://localhost:9090/hello'
-                    // Stop the container after testing
+                    sh 'docker run --rm -d -p 9091:9090 --name helloworld ${DOCKER_IMAGE}:${DOCKER_TAG}'
+                    // Add your test commands here
                     sh 'docker stop helloworld'
                 }
             }
@@ -40,7 +38,7 @@ pipeline {
             steps {
                 script {
                     // Login to DockerHub and push the Docker image
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', passwordVariable: 'DOCKERHUB_PASSWORD', usernameVariable: 'DOCKERHUB_USERNAME')]) {
+                    withCredentials([usernamePassword(credentialsId: 'docker-credentials', passwordVariable: 'DOCKERHUB_PASSWORD', usernameVariable: 'DOCKERHUB_USERNAME')]) {
                         sh 'docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_PASSWORD'
                         sh 'docker push ${DOCKER_IMAGE}:${DOCKER_TAG}'
                     }
